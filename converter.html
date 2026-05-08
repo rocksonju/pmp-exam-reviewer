@@ -75,8 +75,8 @@
 
   <label>Export Format</label>
   <select id="exportFormat">
-    <option value="docx">DOCX (landscape, 1 question per page)</option>
-    <option value="pdf">PDF (landscape, 1 question per page)</option>
+    <option value="docx">DOCX (1 question per page)</option>
+    <option value="pdf">PDF (1 question per page)</option>
     <option value="csv">CSV</option>
     <option value="md">Markdown</option>
   </select>
@@ -189,9 +189,9 @@ function buildCSV(data) {
 // ── PDF Builder ───────────────────────────────────────────────────────────────
 function buildPDF(data) {
   const { jsPDF } = window.jspdf;
-  // Landscape letter: 792 x 612 pt
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'letter' });
-  const PW = 792, PH = 612, ML = 72, MR = 72, MT = 54, MB = 36;
+  // Portrait letter: 612 x 792 pt
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' });
+  const PW = 612, PH = 792, ML = 90, MR = 90, MT = 72, MB = 36;
   const TAN  = [221, 217, 195];
   const GRAY = [242, 242, 242];
   const BLUE = [219, 229, 241];
@@ -217,7 +217,7 @@ function buildPDF(data) {
       body,
       startY: MT,
       margin: { left: ML, right: MR, bottom: MB + 20 },
-      columnStyles: { 0: { cellWidth: 130, fontStyle: 'bold' }, 1: { cellWidth: 'auto' } },
+      columnStyles: { 0: { cellWidth: 100, fontStyle: 'bold' }, 1: { cellWidth: 'auto' } },
       styles: { fontSize: 9, cellPadding: 5, overflow: 'linebreak', valign: 'top', textColor: [0,0,0] },
       didParseCell(d) {
         const r = d.row.index;
@@ -245,9 +245,9 @@ async function buildDOCX(data, moduleName) {
     Header, Footer, PageNumber, Packer,
   } = window.docx;
 
-  // Landscape letter: 15840 x 12240 DXA, 0.75" margins → content = 13680 DXA
-  const TOTAL = 13680;
-  const DLB   = 2200;
+  // Portrait letter: content = 9360 DXA (1" margins each side)
+  const TOTAL = 9360;
+  const DLB   = 1800;
   const DVL   = TOTAL - DLB;
   const FS    = 18; // 9pt in half-points
 
@@ -308,8 +308,7 @@ async function buildDOCX(data, moduleName) {
     sections: [{
       properties: {
         page: {
-          size: { width: 15840, height: 12240, orientation: 'landscape' },
-          margin: { top: 1080, bottom: 1080, left: 1080, right: 1080 },
+          margin: { top: 1440, bottom: 1440, left: 1440, right: 1440 },
         },
       },
       headers: {
