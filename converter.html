@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PMP Exam Review Converter</title>
+  <script src="https://unpkg.com/docx@8.5.0/build/index.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f0f1a;
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+    .card {
+      background: #1a1a2e;
+      border: 1px solid #2a2a4a;
+      border-radius: 14px;
+      padding: 2rem 2.5rem;
+      width: 100%;
+      max-width: 500px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+    }
+    .logo { font-size: 1.5rem; font-weight: 700; color: #7c6af7; margin-bottom: 0.2rem; }
+    .subtitle { font-size: 0.82rem; color: #666; margin-bottom: 2rem; }
+    label { display: block; font-size: 0.78rem; color: #888; font-weight: 500; margin-bottom: 0.35rem; margin-top: 1.25rem; letter-spacing: 0.03em; text-transform: uppercase; }
+    input[type="text"], select {
+      width: 100%; padding: 0.65rem 0.9rem;
+      background: #111128; border: 1px solid #2a2a4a; border-radius: 8px;
+      color: #e0e0e0; font-size: 0.9rem; outline: none; transition: border-color 0.2s;
+    }
+    input[type="text"]:focus, select:focus { border-color: #7c6af7; }
+    select option { background: #111128; }
+    .drop-zone {
+      margin-top: 1.25rem;
+      border: 2px dashed #2a2a4a;
+      border-radius: 10px;
+      padding: 2rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .drop-zone:hover, .drop-zone.over { border-color: #7c6af7; background: #1e1e3a; }
+    .drop-zone input { display: none; }
+    .drop-icon { font-size: 2.2rem; margin-bottom: 0.5rem; }
+    .drop-hint { font-size: 0.82rem; color: #666; }
+    .drop-name { font-size: 0.85rem; color: #7c6af7; margin-top: 0.5rem; font-weight: 500; }
+    .btn {
+      display: block; width: 100%; margin-top: 1.75rem;
+      padding: 0.8rem; background: #7c6af7; border: none; border-radius: 8px;
+      color: #fff; font-size: 0.95rem; font-weight: 600; cursor: pointer;
+      transition: background 0.2s, opacity 0.2s;
+    }
+    .btn:hover:not(:disabled) { background: #6a59e0; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .status { margin-top: 1rem; font-size: 0.82rem; text-align: center; min-height: 1.2rem; }
+    .status.err { color: #e94560; }
+    .status.ok  { color: #4ecca3; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">PMP Exam Review</div>
+  <div class="subtitle">Exam markdown → DOCX · PDF · CSV · MD — runs entirely in your browser</div>
+
+  <label>Module Name</label>
+  <input type="text" id="moduleName" value="Module" placeholder="e.g. Module 3">
+
+  <label>Export Format</label>
+  <select id="exportFormat">
+    <option value="docx">DOCX (2-up landscape)</option>
+    <option value="pdf">PDF (1 question per page)</option>
+    <option value="csv">CSV</option>
+    <option value="md">Markdown</option>
+  </select>
+
+  <label>Exam File (.md)</label>
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="fileInput" accept=".md">
+    <div class="drop-icon">📄</div>
+    <div class="drop-hint">Click or drag & drop a .md file</div>
+    <div class="drop-name" id="dropName"></div>
+  </div>
+
+  <button class="btn" id="convertBtn" disabled>Convert & Download</button>
+  <div class="status" id="status"></div>
+</div>
+
+<script>
+// ── Parser ────────────────────────────────────────────────────────────────────
+function parseMarkdown(content) {
+  const blocks = content.split(/(?=^Question No\.)/m);
+  const results = [];
+  for (let block of blocks) {
+    block = block.trim();
+    if (!block) continue;
+    const lines = block.split('\n');
+    let qNo = '', qId = '';
+    let questionText = [], choices = [], selected = [];
+    let processGroup = [], taskArea = [], justification = [], domain = [], taskDomain = [], reference = [];
+    let state = 'question';
+    for (const line of lines) {
+      const ls = line.trim();
+      if (!ls && state !== 'question' && state !== 'justification') continue;
+      const hm = ls.match(/^Question No\.\s*(.+?)\s*-\s*ID\s*:\s*(.+)/);
+      if (hm) { qNo = hm[1].trim(); qId = hm[2].trim(); state = 'question'; continue; }
+      if (/^Choice\s*\d+/.test(ls))  { state = 'choice';     continue; }
+      if (ls === 'Selected Choice:') { state = 'selected';   continue; }
+      if (ls === 'Process Group :')  { state = 'process';    continue; }
+      if (ls === 'Task/K. Area :')   { state = 'task_area';  continue; }
+      if (ls === 'Justification:')   { state = 'justification'; continue; }
+      if (ls.startsWith('Domain:'))    { state = 'domain';     domain.push(ls.split(':').slice(1).join(':').trim()); continue; }
+      if (ls.startsWith('Task:'))      { state = 'task_domain'; taskDomain.push(ls.split(':').slice(1).join(':').trim()); continue; }
+      if (ls.startsWith('Reference:')) { state = 'reference';  reference.push(ls.split(':').slice(1).join(':').trim()); continue; }
+      if      (state === 'choice')      { choices.push(ls); state = 'await'; }
+      else if (state === 'selected')    selected.push(ls);
+      else if (state === 'process')     processGroup.push(ls);
+      else if (state === 'task_area')   taskArea.push(ls);
+      else if (state === 'justification') justification.push(line);
+      else if (state === 'domain')      domain.push(ls);
+      else if (state === 'task_domain') taskDomain.push(ls);
+      else if (state === 'reference')   reference.push(ls);
+      else if (state === 'question')    questionText.push(line);
+    }
+    results.push({
+      QuestionNo: qNo, QID: qId,
+      Question: questionText.join('\n').trim(),
+      Choices: choices.filter(c => c).join('; '),
+      SelectedChoice: selected.join(' ').trim(),
+      ProcessGroup:   processGroup.join(' ').trim(),
+      TaskArea:       taskArea.join(' ').trim(),
+      Justification:  justification.join('\n').trim(),
+      Domain: domain.join(' ').trim(),
+      Task:   taskDomain.join(' ').trim(),
+      Reference: reference.join(' ').trim(),
+    });
+  }
+  return results;
+}
+
+// ── MD Builder ────────────────────────────────────────────────────────────────
+function buildMarkdown(data) {
+  return data.map(e => {
+    const choices = (e.Choices || '').split('; ');
+    const just = (e.Justification || '').trim().replace(/^"|"$/g, '');
+    const ref  = (e.Reference     || '').trim().replace(/;"?$/, '');
+    const lines = [
+      `Question No. :${e.QuestionNo}`, `Q - ID : ${e.QID}`, '',
+      'Question: ', '', e.Question, '', 'Answer: options',
+      ...choices.map((c, i) => `Choice ${i+1} : ${c}`), '',
+      `Selected Choice: ${e.SelectedChoice}`, '',
+      `Process Group : ${e.ProcessGroup}`, '',
+      `Task/K. Area : ${e.TaskArea}`, '',
+      'Justification:', `"${just}`, '',
+    ];
+    if (e.Domain)    lines.push(`Domain: ${e.Domain};`);
+    if (e.Task)      lines.push(`Task: ${e.Task};`);
+    if (e.Reference) lines.push(`Reference: ${ref} ;"`);
+    lines.push('', '');
+    return lines.join('\n');
+  }).join('');
+}
+
+// ── CSV Builder ───────────────────────────────────────────────────────────────
+function buildCSV(data) {
+  const fields = ['QuestionNo','QID','Question','Choice 1','Choice 2','Choice 3','Choice 4','Choice 5','Choice 6',
+                  'SelectedChoice','ProcessGroup','TaskArea','Justification','Domain','Task','Reference'];
+  const esc = v => `"${(v || '').replace(/"/g, '""')}"`;
+  const rows = [fields.join(',')];
+  for (const row of data) {
+    const ch = (row.Choices || '').split('; ');
+    rows.push([
+      row.QuestionNo, row.QID, row.Question,
+      ch[0]||'', ch[1]||'', ch[2]||'', ch[3]||'', ch[4]||'', ch[5]||'',
+      row.SelectedChoice, row.ProcessGroup, row.TaskArea,
+      row.Justification, row.Domain, row.Task, row.Reference,
+    ].map(esc).join(','));
+  }
+  return '﻿' + rows.join('\r\n');
+}
+
+// ── PDF Builder ───────────────────────────────────────────────────────────────
+function buildPDF(data) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' });
+  const TAN  = [221, 217, 195];
+  const GRAY = [242, 242, 242];
+  const BLUE = [219, 229, 241];
+  data.forEach((entry, i) => {
+    if (i > 0) doc.addPage();
+    const ch = (entry.Choices || '').split('; ');
+    const body = [
+      ['Question No',   entry.QuestionNo   || ''],
+      ['QID',           entry.QID          || ''],
+      ['Question',      entry.Question     || ''],
+      ...Array.from({length: 6}, (_, j) => [`Choice ${j+1}`, ch[j] || '']),
+      ['Correct Answer',entry.SelectedChoice || ''],
+      ['Process\nGroup',entry.ProcessGroup   || ''],
+      ['Task Area',     entry.TaskArea       || ''],
+      ['Justification', entry.Justification  || ''],
+      ['Domain',        entry.Domain         || ''],
+      ['Task',          entry.Task           || ''],
+      ['Reference',     entry.Reference      || ''],
+    ];
+    doc.autoTable({
+      body,
+      startY: 72,
+      margin: { left: 90, right: 90 },
+      columnStyles: { 0: { cellWidth: 100, fontStyle: 'bold' }, 1: { cellWidth: 'auto' } },
+      styles: { fontSize: 9, cellPadding: 5, overflow: 'linebreak', valign: 'top', textColor: [0,0,0] },
+      didParseCell(d) {
+        const r = d.row.index;
+        if (r === 0)  d.cell.styles.fillColor = TAN;
+        if (r === 2)  d.cell.styles.fillColor = GRAY;
+        if (r === 9)  d.cell.styles.fillColor = GRAY;
+        if (r === 12) d.cell.styles.fillColor = BLUE;
+        if ((r === 2 || r === 9) && d.column.index === 1) d.cell.styles.fontStyle = 'bold';
+      },
+    });
+  });
+  return doc.output('arraybuffer');
+}
+
+// ── DOCX Builder ──────────────────────────────────────────────────────────────
+async function buildDOCX(data, moduleName) {
+  const {
+    Document, Paragraph, TextRun, Table, TableRow, TableCell,
+    PageOrientation, WidthType, BorderStyle, ShadingType,
+    AlignmentType, Header, Packer,
+  } = window.docx;
+
+  const DQB = 7020, DSP = 360, DLB = 1500, DVL = 5520, FS = 18;
+
+  const G = (s, z, c) => ({ style: s, size: z, color: c });
+  const BGRID = G(BorderStyle.SINGLE, 4, '000000');
+  const BNONE = G(BorderStyle.NONE,   0, 'FFFFFF');
+  const gb = () => ({ top: BGRID, bottom: BGRID, left: BGRID, right: BGRID });
+  const nb = () => ({ top: BNONE, bottom: BNONE, left: BNONE, right: BNONE });
+  const shd = fill => ({ type: ShadingType.CLEAR, color: 'auto', fill });
+
+  function para(text, bold = false) {
+    const parts = (text || '').split('\n');
+    const children = [];
+    parts.forEach((t, i) => {
+      if (i > 0) children.push(new TextRun({ break: 1 }));
+      children.push(new TextRun({ text: t, bold, color: '000000', size: FS }));
+    });
+    return new Paragraph({ children, spacing: { before: 20, after: 20 } });
+  }
+
+  function buildQTable(e) {
+    const ch = (e.Choices || '').split('; ');
+    const defs = [
+      { l: 'Question No',   v: e.QuestionNo    || '', bg: 'DDD9C3', b: false },
+      { l: 'QID',           v: e.QID           || '', bg: null,     b: false },
+      { l: 'Question',      v: e.Question      || '', bg: 'F2F2F2', b: true  },
+      ...Array.from({length: 6}, (_, i) => ({ l: `Choice ${i+1}`, v: ch[i]||'', bg: null, b: false })),
+      { l: 'Correct Answer',v: e.SelectedChoice|| '', bg: 'F2F2F2', b: true  },
+      { l: 'Process\nGroup',v: e.ProcessGroup  || '', bg: null,     b: false },
+      { l: 'Task Area',     v: e.TaskArea      || '', bg: null,     b: false },
+      { l: 'Justification', v: e.Justification || '', bg: 'DBE5F1', b: false },
+      { l: 'Domain',        v: e.Domain        || '', bg: null,     b: false },
+      { l: 'Task',          v: e.Task          || '', bg: null,     b: false },
+      { l: 'Reference',     v: e.Reference     || '', bg: null,     b: false },
+    ];
+    return new Table({
+      rows: defs.map(({ l, v, bg, b }) => new TableRow({
+        children: [
+          new TableCell({ children: [para(l, true)], width: { size: DLB, type: WidthType.DXA }, borders: gb(), ...(bg ? { shading: shd(bg) } : {}) }),
+          new TableCell({ children: [para(v, b)],    width: { size: DVL, type: WidthType.DXA }, borders: gb(), ...(bg ? { shading: shd(bg) } : {}) }),
+        ],
+      })),
+      width: { size: DQB, type: WidthType.DXA },
+    });
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const children = [];
+
+  for (let i = 0; i < data.length; i += 2) {
+    if (i > 0) children.push(new Paragraph({ pageBreakBefore: true }));
+    const lt = buildQTable(data[i]);
+    const rt = data[i + 1] ? buildQTable(data[i + 1]) : null;
+    children.push(new Table({
+      rows: [new TableRow({
+        children: [
+          new TableCell({ children: [lt],                                       width: { size: DQB, type: WidthType.DXA }, borders: nb() }),
+          new TableCell({ children: [new Paragraph('')],                        width: { size: DSP, type: WidthType.DXA }, borders: nb() }),
+          new TableCell({ children: rt ? [rt] : [new Paragraph('')], width: { size: DQB, type: WidthType.DXA }, borders: nb() }),
+        ],
+      })],
+      width: { size: 14400, type: WidthType.DXA },
+    }));
+  }
+
+  const doc = new Document({
+    sections: [{
+      properties: {
+        page: {
+          size: { orientation: PageOrientation.LANDSCAPE, width: 15840, height: 12240 },
+          margin: { top: 720, bottom: 720, left: 720, right: 720 },
+        },
+      },
+      headers: {
+        default: new Header({
+          children: [new Paragraph({
+            children: [new TextRun({ text: `${moduleName}  |  ${today}`, size: 16, color: '505050' })],
+            alignment: AlignmentType.CENTER,
+          })],
+        }),
+      },
+      children,
+    }],
+  });
+
+  return Packer.toBlob(doc);
+}
+
+// ── Download ──────────────────────────────────────────────────────────────────
+function dl(data, filename, mime) {
+  const blob = data instanceof Blob ? data : new Blob([data], { type: mime });
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: filename });
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+// ── UI ────────────────────────────────────────────────────────────────────────
+let fileContent = null;
+const $  = id => document.getElementById(id);
+const zone = $('dropZone'), fileInput = $('fileInput');
+
+function setStatus(msg, type) {
+  const el = $('status');
+  el.textContent = msg;
+  el.className = 'status' + (type ? ' ' + type : '');
+}
+
+function loadFile(file) {
+  if (!file || !file.name.endsWith('.md')) { setStatus('Only .md files accepted.', 'err'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    fileContent = e.target.result;
+    $('dropName').textContent = file.name;
+    $('convertBtn').disabled = false;
+    setStatus('', '');
+  };
+  reader.readAsText(file);
+}
+
+zone.addEventListener('click',    () => fileInput.click());
+fileInput.addEventListener('change', () => loadFile(fileInput.files[0]));
+zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('over'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('over'));
+zone.addEventListener('drop',      e => { e.preventDefault(); zone.classList.remove('over'); loadFile(e.dataTransfer.files[0]); });
+
+$('convertBtn').addEventListener('click', async () => {
+  if (!fileContent) return;
+  const mod = $('moduleName').value.trim() || 'Module';
+  const fmt = $('exportFormat').value;
+  const data = parseMarkdown(fileContent);
+  if (!data.length) { setStatus('No questions found.', 'err'); return; }
+  $('convertBtn').disabled = true;
+  setStatus('Converting…', '');
+  try {
+    if (fmt === 'md') {
+      dl(new TextEncoder().encode(buildMarkdown(data)), `${mod}_output.md`, 'text/markdown');
+    } else if (fmt === 'csv') {
+      dl(new TextEncoder().encode(buildCSV(data)), `${mod}_output.csv`, 'text/csv');
+    } else if (fmt === 'pdf') {
+      dl(buildPDF(data), `${mod}_output.pdf`, 'application/pdf');
+    } else if (fmt === 'docx') {
+      dl(await buildDOCX(data, mod), `${mod}_output.docx`,
+         'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    }
+    setStatus(`✓ ${data.length} questions converted.`, 'ok');
+  } catch (err) {
+    console.error(err);
+    setStatus('Error: ' + err.message, 'err');
+  } finally {
+    $('convertBtn').disabled = false;
+  }
+});
+</script>
+</body>
+</html>
