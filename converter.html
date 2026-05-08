@@ -75,7 +75,7 @@
 
   <label>Export Format</label>
   <select id="exportFormat">
-    <option value="docx">DOCX (2-up landscape)</option>
+    <option value="docx">DOCX (1 question per page)</option>
     <option value="pdf">PDF (1 question per page)</option>
     <option value="csv">CSV</option>
     <option value="md">Markdown</option>
@@ -230,21 +230,21 @@ function buildPDF(data) {
 
 // ── DOCX Builder ──────────────────────────────────────────────────────────────
 async function buildDOCX(data, moduleName) {
-  if (!window.docx) throw new Error('DOCX library failed to load. Check your internet connection and reload.');
+  if (!window.docx) throw new Error('DOCX library failed to load. Reload the page.');
   const {
     Document, Paragraph, TextRun, Table, TableRow, TableCell,
-    PageOrientation, WidthType, BorderStyle, ShadingType,
-    AlignmentType, Header, Packer,
+    WidthType, BorderStyle, ShadingType, AlignmentType, Header, Packer,
   } = window.docx;
 
-  const DQB = 7020, DSP = 360, DLB = 1500, DVL = 5520, FS = 18;
+  // Portrait, 1 question per page — avoids nested-table browser limitation
+  const TOTAL = 9360; // 6.5" content at 1440 DXA/inch (letter - 1" margins each side)
+  const DLB   = 1800;
+  const DVL   = TOTAL - DLB;
+  const FS    = 18; // 9pt in half-points
 
-  const G = (s, z, c) => ({ style: s, size: z, color: c });
-  const BGRID = G(BorderStyle.SINGLE, 4, '000000');
-  const BNONE = G(BorderStyle.NONE,   0, 'FFFFFF');
+  const BGRID = { style: BorderStyle.SINGLE, size: 4, color: '000000' };
   const gb = () => ({ top: BGRID, bottom: BGRID, left: BGRID, right: BGRID });
-  const nb = () => ({ top: BNONE, bottom: BNONE, left: BNONE, right: BNONE });
-  const shd = fill => ({ type: ShadingType.CLEAR, color: 'auto', fill });
+  const shd  = fill => ({ type: ShadingType.CLEAR, color: 'auto', fill });
 
   function para(text, bold = false) {
     const parts = (text || '').split('\n');
@@ -256,6 +256,15 @@ async function buildDOCX(data, moduleName) {
     return new Paragraph({ children, spacing: { before: 20, after: 20 } });
   }
 
+  function cell(text, bold, bg, width) {
+    return new TableCell({
+      children: [para(text, bold)],
+      width: { size: width, type: WidthType.DXA },
+      borders: gb(),
+      ...(bg ? { shading: shd(bg) } : {}),
+    });
+  }
+
   function buildQTable(e) {
     const ch = (e.Choices || '').split('; ');
     const defs = [
@@ -264,7 +273,7 @@ async function buildDOCX(data, moduleName) {
       { l: 'Question',      v: e.Question      || '', bg: 'F2F2F2', b: true  },
       ...Array.from({length: 6}, (_, i) => ({ l: `Choice ${i+1}`, v: ch[i]||'', bg: null, b: false })),
       { l: 'Correct Answer',v: e.SelectedChoice|| '', bg: 'F2F2F2', b: true  },
-      { l: 'Process\nGroup',v: e.ProcessGroup  || '', bg: null,     b: false },
+      { l: 'Process Group', v: e.ProcessGroup  || '', bg: null,     b: false },
       { l: 'Task Area',     v: e.TaskArea      || '', bg: null,     b: false },
       { l: 'Justification', v: e.Justification || '', bg: 'DBE5F1', b: false },
       { l: 'Domain',        v: e.Domain        || '', bg: null,     b: false },
@@ -272,42 +281,24 @@ async function buildDOCX(data, moduleName) {
       { l: 'Reference',     v: e.Reference     || '', bg: null,     b: false },
     ];
     return new Table({
-      rows: defs.map(({ l, v, bg, b }) => new TableRow({
-        children: [
-          new TableCell({ children: [para(l, true)], width: { size: DLB, type: WidthType.DXA }, borders: gb(), ...(bg ? { shading: shd(bg) } : {}) }),
-          new TableCell({ children: [para(v, b)],    width: { size: DVL, type: WidthType.DXA }, borders: gb(), ...(bg ? { shading: shd(bg) } : {}) }),
-        ],
-      })),
-      width: { size: DQB, type: WidthType.DXA },
+      rows: defs.map(({ l, v, bg, b }) =>
+        new TableRow({ children: [cell(l, true, bg, DLB), cell(v, b, bg, DVL)] })
+      ),
+      width: { size: TOTAL, type: WidthType.DXA },
     });
   }
 
   const today = new Date().toISOString().slice(0, 10);
   const children = [];
-
-  for (let i = 0; i < data.length; i += 2) {
+  data.forEach((entry, i) => {
     if (i > 0) children.push(new Paragraph({ pageBreakBefore: true }));
-    const lt = buildQTable(data[i]);
-    const rt = data[i + 1] ? buildQTable(data[i + 1]) : null;
-    children.push(new Table({
-      rows: [new TableRow({
-        children: [
-          new TableCell({ children: [lt],                                       width: { size: DQB, type: WidthType.DXA }, borders: nb() }),
-          new TableCell({ children: [new Paragraph('')],                        width: { size: DSP, type: WidthType.DXA }, borders: nb() }),
-          new TableCell({ children: rt ? [rt] : [new Paragraph('')], width: { size: DQB, type: WidthType.DXA }, borders: nb() }),
-        ],
-      })],
-      width: { size: 14400, type: WidthType.DXA },
-    }));
-  }
+    children.push(buildQTable(entry));
+  });
 
   const doc = new Document({
     sections: [{
       properties: {
-        page: {
-          size: { orientation: PageOrientation.LANDSCAPE, width: 15840, height: 12240 },
-          margin: { top: 720, bottom: 720, left: 720, right: 720 },
-        },
+        page: { margin: { top: 1440, bottom: 1440, left: 1440, right: 1440 } },
       },
       headers: {
         default: new Header({
