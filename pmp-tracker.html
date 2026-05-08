@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PMP Mastery Protocol - ECO Enforcer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        zinc: {
+                            850: '#1f1f22',
+                            900: '#18181b',
+                            950: '#09090b',
+                        },
+                        orange: {
+                            500: '#f97316',
+                            600: '#ea580c',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Chosen Palette: Black (Zinc-950), Dark Gray (Zinc-900), Vibrant Orange (Orange-500) -->
+    <!-- Application Structure Plan: 
+         - Maintained Dark Mode Split-View structure.
+         - Upgraded Navigation to an "Apple-style" segmented control (pill-shaped, smooth background transitions).
+         - ECO matrix remains intact, directly mapped to the 35 Tasks. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body { background-color: #09090b; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #e4e4e7; }
+        
+        /* Apple-Pro Style Tabs */
+        .apple-tabs-container {
+            background: rgba(24, 24, 27, 0.7); /* zinc-900 with transparency */
+            backdrop-filter: blur(10px);
+            padding: 6px;
+            border-radius: 16px;
+            border: 1px solid #27272a; /* zinc-800 */
+            display: inline-flex;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+        }
+        .apple-tab {
+            padding: 12px 28px;
+            border-radius: 12px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-size: 0.9rem;
+            color: #71717a; /* zinc-500 */
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid transparent;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .apple-tab:hover:not(.active) {
+            color: #d4d4d8; /* zinc-300 */
+        }
+        .apple-tab.active {
+            color: #ffffff;
+            background-color: #27272a; /* zinc-800 */
+            border-color: #3f3f46; /* zinc-700 */
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+            text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+        }
+
+        .glass-panel { background: #18181b; border: 1px solid #27272a; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5); }
+        .chart-container { position: relative; width: 100%; max-width: 400px; margin-left: auto; margin-right: auto; height: 250px; max-height: 300px; }
+        .day-card { transition: all 0.2s ease; cursor: pointer; border: 1px solid #3f3f46; background: #1f1f22; }
+        .day-card:hover { border-color: #f97316; }
+        .day-card.selected { border-color: #f97316; box-shadow: 0 0 10px rgba(249, 115, 22, 0.2); }
+        .day-card.completed { border-color: #22c55e; opacity: 0.6; }
+        .day-card.completed .day-title { text-decoration: line-through; color: #71717a; }
+        .hidden-content { display: none; }
+        .briefing-topic-btn[aria-expanded="true"] .topic-icon { transform: rotate(90deg); color: #f97316; }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #09090b; }
+        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #f97316; }
+    </style>
+</head>
+<body class="antialiased overflow-x-hidden">
+
+    <div class="max-w-7xl mx-auto p-4 md:p-8">
+        
+        <header class="mb-8 text-center md:text-left glass-panel p-6 rounded-xl border-l-8 border-l-orange-500">
+            <h1 class="text-3xl md:text-5xl font-black text-white uppercase tracking-tight mb-2">PMP Mastery Protocol</h1>
+            <p class="text-lg text-zinc-400 font-medium">Ignorance of the Exam Content Outline (ECO) is the #1 reason candidates fail. Learn the 35 tasks.</p>
+            <div class="mt-4 inline-block bg-orange-500/10 text-orange-500 px-3 py-1 rounded text-sm font-bold border border-orange-500/30 uppercase tracking-widest">
+                Countdown: 30 Days to Exam
+            </div>
+        </header>
+
+        <!-- Pro Apple-Style Segmented Tabs -->
+        <div class="flex justify-center md:justify-start mb-8 w-full overflow-x-auto pb-2">
+            <nav class="apple-tabs-container">
+                <button id="btn-plan" class="apple-tab active focus:outline-none">30-Day Battle Plan</button>
+                <button id="btn-matrix" class="apple-tab focus:outline-none">Complete ECO Matrix</button>
+            </nav>
+        </div>
+
+        <!-- VIEW: 30 DAY PLAN -->
+        <section id="view-plan" class="space-y-6">
+            <div class="glass-panel p-6 rounded-xl flex flex-col md:flex-row justify-between items-center gap-4">
+                <div>
+                    <h2 class="text-2xl font-bold uppercase tracking-widest text-white">Execution Timeline</h2>
+                    <p class="text-zinc-400">Click a day. Open the nodes. Read the brutal truth. Then execute.</p>
+                </div>
+                <div class="w-full md:w-1/3">
+                    <div class="flex justify-between mb-1 text-sm font-bold text-zinc-300">
+                        <span>Combat Readiness:</span>
+                        <span id="progress-text" class="text-orange-500">0%</span>
+                    </div>
+                    <div class="w-full bg-zinc-800 rounded-full h-3 border border-zinc-700">
+                        <div id="progress-bar" class="bg-orange-500 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-col lg:flex-row gap-6">
+                <!-- Left: Grid -->
+                <div class="w-full lg:w-2/3 glass-panel p-6 rounded-xl">
+                    <div class="grid grid-cols-3 md:grid-cols-5 gap-3" id="plan-grid">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- Right: Daily Briefing Panel -->
+                <div class="w-full lg:w-1/3 glass-panel p-6 rounded-xl flex flex-col h-[700px] sticky top-4">
+                    <h3 class="text-xl font-bold uppercase tracking-widest text-orange-500 border-b border-zinc-800 pb-3 mb-4">Daily Briefing</h3>
+                    
+                    <div id="briefing-content" class="flex-grow overflow-y-auto pr-2">
+                        <div class="text-center text-zinc-500 mt-20">
+                            <div class="text-4xl mb-4">↑</div>
+                            <p>Select a day from the grid to receive your operational briefing.</p>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 pt-4 border-t border-zinc-800">
+                        <button id="btn-mark-complete" class="w-full bg-zinc-800 hover:bg-orange-600 text-zinc-400 hover:text-white border border-zinc-700 hover:border-orange-500 font-bold py-3 px-4 rounded transition-all duration-200 uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                            Select a Day First
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- VIEW: KNOWLEDGE MATRIX -->
+        <section id="view-matrix" class="hidden-content space-y-8">
+            <div class="glass-panel p-6 rounded-xl">
+                <p class="mb-4 text-zinc-400"><strong>Instructor's Directive:</strong> The exam is built entirely on the 35 Tasks inside the Exam Content Outline (ECO). If you don't understand how PMI expects you to handle these exact scenarios, you will fail. Memorize these groupings.</p>
+                
+                <div class="flex flex-col md:flex-row items-center gap-8">
+                    <div class="w-full md:w-1/3">
+                        <div class="chart-container">
+                            <canvas id="ecoChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="w-full md:w-2/3">
+                        <h2 class="text-2xl font-bold mb-4 border-b border-zinc-800 pb-2 text-white">The Four Pillars of the Exam</h2>
+                        <ul class="space-y-3">
+                            <li class="flex items-start"><span class="text-orange-500 mr-3 text-xl font-bold">✓</span> <div class="text-zinc-300"><strong class="text-white">Servant Leadership (People):</strong> You are a bulldozer clearing obstacles for the team. You do not micromanage or assign tasks in Agile. You facilitate.</div></li>
+                            <li class="flex items-start"><span class="text-orange-500 mr-3 text-xl font-bold">✓</span> <div class="text-zinc-300"><strong class="text-white">Assess Then Act (Process):</strong> You never fire someone, escalate immediately to the sponsor, or blindly implement a change without assessing the impact first.</div></li>
+                            <li class="flex items-start"><span class="text-orange-500 mr-3 text-xl font-bold">✓</span> <div class="text-zinc-300"><strong class="text-white">Strict Change Control (Process):</strong> In Predictive projects, ANY change to a baseline must go through the CCB. Period.</div></li>
+                            <li class="flex items-start"><span class="text-orange-500 mr-3 text-xl font-bold">✓</span> <div class="text-zinc-300"><strong class="text-white">Value Driven (Business):</strong> Projects exist to deliver business value. Regulatory compliance takes priority over everything.</div></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-panel p-6 rounded-xl">
+                <h2 class="text-2xl font-bold mb-6 uppercase text-center tracking-widest text-white">The 35 ECO Tasks: Exhaustive Matrix</h2>
+                <div id="matrix-container" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <script>
+        // --- Navigation Logic ---
+        const domMatrixBtn = document.getElementById('btn-matrix');
+        const domPlanBtn = document.getElementById('btn-plan');
+        const viewMatrix = document.getElementById('view-matrix');
+        const viewPlan = document.getElementById('view-plan');
+
+        domMatrixBtn.addEventListener('click', () => switchTab('matrix'));
+        domPlanBtn.addEventListener('click', () => switchTab('plan'));
+
+        function switchTab(tab) {
+            if (tab === 'matrix') {
+                domMatrixBtn.classList.add('active');
+                domPlanBtn.classList.remove('active');
+                viewMatrix.classList.remove('hidden-content');
+                viewPlan.classList.add('hidden-content');
+            } else {
+                domPlanBtn.classList.add('active');
+                domMatrixBtn.classList.remove('active');
+                viewPlan.classList.remove('hidden-content');
+                viewMatrix.classList.add('hidden-content');
+            }
+        }
+
+        // --- Chart Logic ---
+        const ecoData = {
+            labels: ['People (42%)', 'Process (50%)', 'Business Env (8%)'],
+            datasets: [{
+                data: [42, 50, 8],
+                backgroundColor: ['#f97316', '#3f3f46', '#71717a'],
+                borderWidth: 2,
+                borderColor: '#18181b'
+            }]
+        };
+
+        const ctx = document.getElementById('ecoChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: ecoData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '75%',
+                plugins: {
+                    legend: { position: 'bottom', labels: { color: '#e4e4e7', font: { family: 'Segoe UI', size: 12 } } },
+                    tooltip: { backgroundColor: '#27272a', titleColor: '#f97316', bodyColor: '#e4e4e7', borderColor: '#3f3f46', borderWidth: 1 }
+                }
+            }
+        });
+
+        // --- Exhaustive ECO Task Data Mapping ---
+        const matrixData = [
+            {
+                id: 'domain-people', title: '1. PEOPLE (42% - 14 Tasks)', color: 'bg-zinc-800', border: 'border-zinc-700',
+                topics: [
+                    { 
+                        name: 'Conflict, EQ & Leadership (Tasks 1, 2, 13, 14)', 
+                        desc: 'Manage conflict, lead the team, mentor stakeholders, and apply emotional intelligence.', 
+                        ex: 'Two seniors clash over design. You do not decide for them (Autocratic). You use Problem Solving (Win-Win) to facilitate a joint technical resolution. Always address conflict at the lowest possible level.' 
+                    },
+                    { 
+                        name: 'Empowerment & Ground Rules (Tasks 3, 4, 6, 12)', 
+                        desc: 'Build the team, support performance, empower members, and define ground rules/Team Charter.', 
+                        ex: 'A team member is chronically late to standup. You don\'t immediately escalate to HR. You review the Team Charter/Ground Rules with the team to ensure everyone understands the agreed-upon norms.' 
+                    },
+                    { 
+                        name: 'Impediments & Virtual Teams (Tasks 5, 7, 11)', 
+                        desc: 'Remove blockers, ensure adequate training, and engage virtual teams.', 
+                        ex: 'A virtual team in Asia is struggling with US time zone meetings. You do not force them to stay up till 2 AM. You analyze communication needs and adjust the meeting times to share the burden.' 
+                    },
+                    { 
+                        name: 'Stakeholders & Agreements (Tasks 8, 9, 10)', 
+                        desc: 'Negotiate agreements, collaborate with stakeholders, and build shared understanding.', 
+                        ex: 'A key stakeholder refuses to accept a deliverable because "it\'s not what they wanted." You pull up the Requirements Traceability Matrix and Scope Baseline to build a shared understanding of what was actually agreed upon.' 
+                    }
+                ]
+            },
+            {
+                id: 'domain-process', title: '2. PROCESS (50% - 17 Tasks)', color: 'bg-zinc-800', border: 'border-zinc-700',
+                topics: [
+                    { 
+                        name: 'Methodology & Value (Tasks 1, 13)', 
+                        desc: 'Determine appropriate methodology (Agile/Predictive/Hybrid) and execute to deliver business value.', 
+                        ex: 'Client wants an application but has no idea what features users actually need. Do not use Predictive. Choose Agile to deliver an MVP quickly and iterate based on user feedback to maximize value.' 
+                    },
+                    { 
+                        name: 'The Core Baselines (Tasks 5, 6, 7, 8)', 
+                        desc: 'Plan and manage Scope, Schedule, Budget/Resources, and Quality.', 
+                        ex: 'A developer adds an unrequested "cool feature" that takes 2 extra days. This is Gold Plating (violates Scope/Schedule/Cost). Tell them to stop. Quality is meeting the exact requirements, nothing more.' 
+                    },
+                    { 
+                        name: 'Risk, Issues & Procurement (Tasks 3, 11, 15)', 
+                        desc: 'Assess and manage risks, manage issues, and manage procurement.', 
+                        ex: 'A supplier goes bankrupt (an Issue). You check the Risk Register to see if this was identified. If it was, execute the planned Risk Response. If not, formulate a workaround and update the Issue Log.' 
+                    },
+                    {
+                        name: 'Changes, Integration & Governance (Tasks 9, 10, 12, 14)',
+                        desc: 'Integrate planning, manage project changes, manage artifacts, and establish governance.',
+                        ex: 'The sponsor verbally demands a new feature. You must submit a formal Change Request and run it through the CCB. Never alter a baseline based on a hallway conversation.'
+                    },
+                    {
+                        name: 'Comms, Stakeholders & Closure (Tasks 2, 4, 16, 17)',
+                        desc: 'Manage communications, engage stakeholders, ensure knowledge transfer, and manage closures.',
+                        ex: 'A project phase is ending. Before moving to the next phase, you MUST formally close the current phase, update lessons learned, and transfer knowledge. You cannot just skip to the next task.'
+                    }
+                ]
+            },
+            {
+                id: 'domain-business', title: '3. BUSINESS (8% - 4 Tasks)', color: 'bg-zinc-800', border: 'border-zinc-700',
+                topics: [
+                    { 
+                        name: 'Compliance (Task 1)', 
+                        desc: 'Plan and manage project compliance (legal, health, safety, regulatory).', 
+                        ex: 'A new environmental law passes midway through a construction project. You MUST pause, evaluate the impact on your project, and initiate a change request to ensure strict compliance. Compliance outranks schedule.' 
+                    },
+                    { 
+                        name: 'Benefits & Value Realization (Task 2)', 
+                        desc: 'Evaluate and deliver project benefits and value.', 
+                        ex: 'Your project delivered the software on time and under budget. Are you done? No. You must verify against the Benefits Management Plan to ensure the software actually increased revenue by the promised 10%.' 
+                    },
+                    { 
+                        name: 'External Environment & Org Change (Tasks 3, 4)', 
+                        desc: 'Evaluate external changes for impact on scope, and support organizational change.', 
+                        ex: 'A competitor releases a better product, changing the external market. You must evaluate the business case. Additionally, if you deliver a new IT system, you must manage the Org Change so employees actually adopt it.' 
+                    }
+                ]
+            }
+        ];
+
+        function renderMatrix() {
+            const container = document.getElementById('matrix-container');
+            container.innerHTML = ''; 
+            matrixData.forEach(domain => {
+                const domainDiv = document.createElement('div');
+                domainDiv.className = `border ${domain.border} rounded-xl overflow-hidden bg-zinc-900 shadow-lg`;
+                
+                let topicsHTML = domain.topics.map((topic, index) => `
+                    <div class="border-t ${domain.border}">
+                        <button class="w-full text-left p-4 font-bold text-zinc-300 hover:bg-zinc-800 focus:outline-none flex justify-between items-center" onclick="toggleElement('${domain.id}-topic-${index}', 'icon-${domain.id}-topic-${index}', '+', '-')">
+                            <span class="pr-4">${topic.name}</span>
+                            <span id="icon-${domain.id}-topic-${index}" class="text-orange-500 text-xl leading-none font-mono flex-shrink-0">+</span>
+                        </button>
+                        <div id="${domain.id}-topic-${index}" class="hidden-content p-4 pt-0 bg-zinc-850 text-sm">
+                            <p class="mb-3 text-zinc-400 leading-relaxed"><strong class="text-white">ECO Directives:</strong> ${topic.desc}</p>
+                            <div class="bg-black p-3 rounded border border-zinc-800 text-zinc-400 border-l-2 border-l-orange-500">
+                                <strong class="text-orange-500 block mb-1">Brutal Exam Trap:</strong> ${topic.ex}
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+
+                domainDiv.innerHTML = `<div class="${domain.color} text-white p-4 font-black tracking-wide text-lg text-center uppercase">${domain.title}</div><div class="transition-all duration-300">${topicsHTML}</div>`;
+                container.appendChild(domainDiv);
+            });
+        }
+
+        // --- Brutal 30-Day Plan Data (Objects with ECO Context) ---
+        const planData = [
+            { day: 1, title: 'Agile Manifesto & Mindset', desc: 'Rewire your brain. Traditional command-and-control fails here.', topics: [
+                { title: 'Value over Process', detail: '<strong>ECO Link:</strong> Deliver Business Value (Process Task 1). PMs must focus on Value Delivery. A stakeholder complains about a lack of detailed documentation in an Agile project. You do NOT pause work to write a 50-page doc; you explain that working software is the primary measure of progress.' },
+                { title: 'Servant Leadership', detail: '<strong>ECO Link:</strong> Lead a Team (People Task 2). You serve the team, not the other way around. Team members are fighting over who does what task. You do NOT assign the tasks. You facilitate a meeting for them to self-organize and decide.' },
+                { title: 'Embrace Change', detail: '<strong>ECO Link:</strong> Determine Methodology (Process Task 13). Agile welcomes late changes. Client requests a major change in Sprint 4. You don\'t submit a Change Request (Predictive). You ask the Product Owner to prioritize it in the backlog for the next sprint.' }
+            ]},
+            { day: 2, title: 'Scrum Fundamentals', desc: 'The most tested Agile framework. Know the boundaries.', topics: [
+                { title: 'Product Owner (PO)', detail: '<strong>ECO Link:</strong> Collaborate with Stakeholders (People Task 9). The PO owns the backlog and ROI. The team doesn\'t know what to build next. As Scrum Master, you don\'t decide; you consult the PO to prioritize the backlog.' },
+                { title: 'The Developers', detail: '<strong>ECO Link:</strong> Empower Team (People Task 4). Cross-functional and self-organizing. They own the "How". Management wants to know exactly how long a feature will take. You do NOT estimate it yourself. You take it to the Developers.' },
+                { title: 'Definition of Done (DoD)', detail: '<strong>ECO Link:</strong> Manage Quality (Process Task 7). The checklist for the Increment. A feature passes testing but fails security review. Is it done? No. It must meet the DoD before it is presented at the Sprint Review.' }
+            ]},
+            { day: 3, title: 'Agile Ceremonies', desc: 'Stop confusing the Review and the Retrospective.', topics: [
+                { title: 'Daily Standup', detail: '<strong>ECO Link:</strong> Support Team Performance (People Task 3). 15 mins. What I did, what I will do, blockers. A developer starts solving a complex coding issue during standup. You immediately take it "offline" to respect the 15-minute timebox.' },
+                { title: 'Sprint Review', detail: '<strong>ECO Link:</strong> Engage Stakeholders (Process Task 4). Demonstrate the working increment to stakeholders for feedback. The client hates the product direction. Where do you discover this? At the Sprint Review. Where do you adjust the backlog based on it? Sprint Planning.' },
+                { title: 'Sprint Retrospective', detail: '<strong>ECO Link:</strong> Support Team Performance (People Task 3). Process improvement. What went well, what didn\'t. The team missed their sprint goal because of a broken deployment pipeline. You discuss how to fix the *process* of deploying in the Retrospective.' }
+            ]},
+            { day: 4, title: 'Predictive Lifecycle', desc: 'Rigid, planned, baseline-driven (Waterfall).', topics: [
+                { title: 'Project Management Plan', detail: '<strong>ECO Link:</strong> Integrate Planning (Process Task 9). The master blueprint. Contains all subsidiary plans (Scope, Cost, etc.) and baselines. You cannot unilaterally change the PM Plan once approved. It requires a formal Change Request.' },
+                { title: 'Baselines', detail: '<strong>ECO Link:</strong> Manage Changes (Process Task 10). Scope, Schedule, and Cost. They measure performance. A project is delayed. You don\'t just update the schedule baseline to make it look green. You report the variance and request a change if needed.' }
+            ]},
+            { day: 5, title: 'Scope Management', desc: 'Define exactly what is and is NOT included.', topics: [
+                { title: 'WBS & Work Packages', detail: '<strong>ECO Link:</strong> Plan and Manage Scope (Process Task 8). WBS breaks down deliverables into manageable Work Packages (the lowest level). Team doesn\'t understand the technical details of a task. Refer them to the WBS Dictionary, not the project charter.' },
+                { title: 'Validate vs Control Scope', detail: '<strong>ECO Link:</strong> Plan and Manage Scope (Process Task 8). Validate = Client formally accepts the deliverable. Control = PM ensures team isn\'t adding extra unapproved features (Gold Plating). Gold plating is strictly forbidden. If a dev adds a "cool feature" for free, tell them to stop and adhere to the scope baseline.' }
+            ]},
+            { day: 6, title: 'Schedule Management', desc: 'Time is money. Know how to compress it.', topics: [
+                { title: 'Critical Path Method', detail: '<strong>ECO Link:</strong> Plan and Manage Schedule (Process Task 6). The longest path through the network diagram. Float = 0. A task on the critical path is delayed by 2 days. The whole project is delayed by 2 days. Period.' },
+                { title: 'Crashing vs Fast Tracking', detail: '<strong>ECO Link:</strong> Plan and Manage Schedule (Process Task 6). Schedule compression. Crashing adds resources (increases Cost). Fast Tracking does tasks in parallel (increases Risk). If the question says "budget is fixed", you cannot Crash.' }
+            ]},
+            { day: 7, title: 'Cost Management & EVM', desc: 'Memorize the formulas. No excuses.', topics: [
+                { title: 'CPI and SPI', detail: '<strong>ECO Link:</strong> Plan and Manage Budget (Process Task 5). Cost/Schedule Performance Index. Under 1.0 is BAD. Over 1.0 is GOOD. SPI is 0.8, CPI is 1.2. The project is behind schedule but under budget.' },
+                { title: 'Estimate at Completion (EAC)', detail: '<strong>ECO Link:</strong> Plan and Manage Budget (Process Task 5). What the total project will cost based on current performance. Formula: BAC / CPI. If the project started terrible but the team promises they will hit the original budget, ignore their promises. Trust the EAC math.' }
+            ]},
+            { day: 8, title: 'Quality Management', desc: 'Preventing defects is cheaper than fixing them.', topics: [
+                { title: 'Quality vs Grade', detail: '<strong>ECO Link:</strong> Manage Quality (Process Task 7). Low grade is acceptable (e.g., a basic flip phone). Low quality is NOT acceptable (e.g., a flip phone that drops every call). Client wants a basic feature set to save money. This is a grade decision, not a quality failure.' },
+                { title: 'Audits vs Inspections', detail: '<strong>ECO Link:</strong> Manage Quality (Process Task 7). Audits check the PROCESS (Manage Quality). Inspections check the PRODUCT (Control Quality). To prevent a recurring defect, you do an Audit to fix the manufacturing process.' }
+            ]},
+            { day: 9, title: 'Resource Management', desc: 'Managing humans and equipment effectively.', topics: [
+                { title: 'Tuckman Ladder', detail: '<strong>ECO Link:</strong> Build a Team (People Task 6). Forming, Storming, Norming, Performing, Adjourning. Team is arguing heavily about roles. They are in Storming. You must be highly directive here to push them into Norming.' },
+                { title: 'Resource Leveling vs Smoothing', detail: '<strong>ECO Link:</strong> Manage Resources (Process Task 5). Leveling fixes overallocation but CAN change the critical path (delay project). Smoothing only uses free float (doesn\'t change critical path). If you cannot delay the project end date, use Smoothing.' }
+            ]},
+            { day: 10, title: 'Mini-Mock (50 Qs)', desc: 'Test your initial baseline. Don\'t panic if you fail.', topics: [
+                { title: 'Execution Parameters', detail: 'Do 50 questions in exactly 60 minutes. No checking answers halfway. Isolate yourself. Find out if your reading comprehension breaks down under time pressure.' }
+            ]},
+            { day: 11, title: 'Communications', desc: '90% of a PM\'s job. Fix the flow of information.', topics: [
+                { title: 'Push vs Pull vs Interactive', detail: '<strong>ECO Link:</strong> Manage Communications (Process Task 2). Interactive = Meetings. Push = Emails/Reports. Pull = Intranet/Wiki. Stakeholder complains they didn\'t get a report. Don\'t argue. Check the Communications Management Plan to see how they were supposed to receive it.' },
+                { title: 'Communication Channels', detail: '<strong>ECO Link:</strong> Manage Communications (Process Task 2). Formula is N(N-1)/2. Team goes from 5 to 6 people. Channels jump from 10 to 15. The takeaway? Adding people drastically increases communication complexity.' }
+            ]},
+            { day: 12, title: 'Risk Management', desc: 'Identify the bad and the good before they happen.', topics: [
+                { title: 'Identify Risks early', detail: '<strong>ECO Link:</strong> Assess and Manage Risks (Process Task 3). Anyone can identify a risk. Put it in the Risk Register. A team member mentions a potential issue. You do not analyze it instantly; you document it in the Risk Register first.' },
+                { title: 'Risk Responses', detail: '<strong>ECO Link:</strong> Assess and Manage Risks (Process Task 3). Mitigate (reduce probability), Transfer (insurance/vendor), Avoid (change plan), Accept (do nothing). Buying fire insurance doesn\'t stop the fire (Mitigate), it shifts the financial burden (Transfer).' }
+            ]},
+            { day: 13, title: 'Procurement', desc: 'Contracts transfer risk.', topics: [
+                { title: 'Fixed Price (FP)', detail: '<strong>ECO Link:</strong> Manage Procurement (Process Task 11). Risk is on the Seller. Scope must be perfectly defined. You have a vague Agile project. Do NOT use Firm Fixed Price. You will get destroyed by change orders.' },
+                { title: 'Time & Materials (T&M)', detail: '<strong>ECO Link:</strong> Manage Procurement (Process Task 11). Risk is shared/on Buyer. Good for staff augmentation. Need 3 extra coders for 2 weeks immediately? Use a T&M contract. It sets up fast.' }
+            ]},
+            { day: 14, title: 'Stakeholder Management', desc: 'Keep the right people happy at the right time.', topics: [
+                { title: 'Power/Interest Grid', detail: '<strong>ECO Link:</strong> Engage Stakeholders (Process Task 4). High Power/High Interest = Manage Closely. High Power/Low Interest = Keep Satisfied. A CEO (High Power) is suddenly angry about a feature. You must move them from "Resistant" to "Supportive" via the Stakeholder Engagement Plan.' }
+            ]},
+            { day: 15, title: 'Change Control Deep Dive', desc: 'The most critical sequence in Predictive.', topics: [
+                { title: 'The Rigid Sequence', detail: '<strong>ECO Link:</strong> Manage Project Changes (Process Task 10). 1. Prevent root cause. 2. Identify change. 3. Assess Impact (Time/Cost). 4. Create Change Request. 5. Perform Integrated Change Control (CCB). 6. Update Baselines. Sponsor verbally says "add this". You MUST formally document it and assess impact first.' }
+            ]},
+            { day: 16, title: 'Conflict Resolution', desc: 'Confront problems, not people.', topics: [
+                { title: 'Collaborating / Problem Solving', detail: '<strong>ECO Link:</strong> Manage Conflict (People Task 1). The best approach. Win-Win. Focus on facts. If the exam asks for the "best" long-term resolution, look for the answer that has parties facing the issue directly and collaborating.' },
+                { title: 'Forcing vs Smoothing', detail: '<strong>ECO Link:</strong> Manage Conflict (People Task 1). Forcing is Win-Lose (emergencies). Smoothing is "we agree on this little thing" (temporary). Project is failing in 2 hours. You don\'t have time to collaborate. You use Forcing to command a fix.' }
+            ]},
+            { day: 17, title: 'Compliance & Business Value', desc: 'Rules and Money.', topics: [
+                { title: 'Regulatory Compliance', detail: '<strong>ECO Link:</strong> Manage Compliance (Business Task 1). Highest priority. A new safety law passes. It will cost the project $50k and delay it 2 months. You DO NOT ignore it. You immediately initiate a change request to implement the compliance.' },
+                { title: 'Benefits Realization', detail: '<strong>ECO Link:</strong> Evaluate Benefits (Business Task 2). Verifying the project achieved its business case. App is live. PM\'s job isn\'t done until they measure if the app actually increased sales by the targeted 15%.' }
+            ]},
+            { day: 18, title: 'Hybrid Environments', desc: 'The real world is messy. Blend the approaches.', topics: [
+                { title: 'Agile Dev, Predictive Rollout', detail: '<strong>ECO Link:</strong> Determine Methodology (Process Task 13). Very common. Software built in sprints, but hardware deployment is scheduled rigidly. You must shield the Agile dev team from the Predictive stakeholders demanding rigid daily status reports.' }
+            ]},
+            { day: 19, title: 'Mock Exam 1 (180 Qs)', desc: 'The first crucible. 230 Minutes. Build stamina.', topics: [{title:'Execution', detail:'No phone. 230 minutes. Take the built-in 10-minute breaks. Learn what fatigue feels like at question 140.'}] },
+            { day: 20, title: 'Deep Review Mock 1', desc: 'Reviewing is more important than testing.', topics: [{title:'Gap Analysis', detail:'Did you fail because you didn\'t know the formula, or because you misread "Except"? Categorize every wrong answer against the ECO Tasks.'}] },
+            { day: 21, title: 'Gap Study: Process', desc: 'Fix your process and sequence weaknesses.', topics: [{title:'Process Flow', detail:'Review the exact flow of Change Control and Risk Management. Know what document gets updated when.'}] },
+            { day: 22, title: 'Gap Study: People/Agile', desc: 'Fix your situational leadership weaknesses.', topics: [{title:'Servant Leadership Check', detail:'Are you still trying to be a dictator in your mock exams? Stop it. Choose the answer where the PM facilitates and empowers.'}] },
+            { day: 23, title: 'Mock Exam 2 (180 Qs)', desc: 'Apply lessons learned. Target > 65%.', topics: [{title:'Pacing', detail:'You should be hitting 60 questions per 75 minutes. If you are behind, learn to guess and mark for review.'}] },
+            { day: 24, title: 'Deep Review Mock 2', desc: 'Grind the data. Where are you bleeding points?', topics: [{title:'Domain Focus', detail:'If you are scoring 50% in the People domain, you will fail. Reread the Servant Leadership rules and People ECO tasks immediately.'}] },
+            { day: 25, title: 'Speed & Elimination', desc: 'Learn to eliminate BS answers instantly.', topics: [{title:'The "Never" Rule', detail:'Eliminate answers containing "Always", "Never", "Must". Eliminate answers that immediately escalate to the sponsor. Eliminate answers that fire people.'}] },
+            { day: 26, title: 'Process Data Flow', desc: 'Understand how data becomes information.', topics: [{title:'WPD -> WPI -> WPR', detail:'Work Performance Data (raw numbers) goes to Controlling processes to become Work Performance Info (status), which goes to Monitor & Control Work to become Work Performance Reports.'}] },
+            { day: 27, title: 'Mock Exam 3 (180 Qs)', desc: 'Final simulation. Target > 70%.', topics: [{title:'Full Send', detail:'This is your final dress rehearsal. Treat every question like it costs you $555 (the exam fee).'}] },
+            { day: 28, title: 'Review Mock 3', desc: 'Final tune-up.', topics: [{title:'Mental Triage', detail:'Only review what you got wrong. Do not try to learn a brand new complicated concept today. Solidify your base.'}] },
+            { day: 29, title: 'Brainwash Day', desc: 'Read the mindset rules. Stop studying early.', topics: [{title:'Rest', detail:'Write down the EVM formulas 5 times. Read the Mindset rules. At 5:00 PM, shut it down. A tired brain fails situational exams.'}] },
+            { day: 30, title: 'EXECUTE', desc: 'Trust your training. You are ready.', topics: [{title:'Victory', detail:'Read the last sentence of the question first. Eliminate two bad answers. Pick the one that sounds most like a Servant Leader. Pass the exam.'}] }
+        ];
+
+        let completedDays = JSON.parse(localStorage.getItem('pmpPlanStatusDarkPro')) || Array(30).fill(false);
+        let currentSelectedDay = null;
+
+        const planGrid = document.getElementById('plan-grid');
+        const briefingContent = document.getElementById('briefing-content');
+        const btnMarkComplete = document.getElementById('btn-mark-complete');
+        const progressBar = document.getElementById('progress-bar');
+        const progressText = document.getElementById('progress-text');
+
+        // General toggler for DOM elements
+        window.toggleElement = function(contentId, iconId, plusChar = '+', minusChar = '-') {
+            const el = document.getElementById(contentId);
+            const icon = document.getElementById(iconId);
+            if (el.classList.contains('hidden-content')) {
+                el.classList.remove('hidden-content');
+                if(icon) icon.innerText = minusChar;
+            } else {
+                el.classList.add('hidden-content');
+                if(icon) icon.innerText = plusChar;
+            }
+        };
+
+        // Specific toggler for Briefing Accordions to handle ARIA and styling
+        window.toggleBriefingTopic = function(btnId, contentId) {
+            const btn = document.getElementById(btnId);
+            const content = document.getElementById(contentId);
+            const isExpanded = btn.getAttribute('aria-expanded') === 'true';
+            
+            if(isExpanded) {
+                btn.setAttribute('aria-expanded', 'false');
+                content.classList.add('hidden-content');
+            } else {
+                btn.setAttribute('aria-expanded', 'true');
+                content.classList.remove('hidden-content');
+            }
+        }
+
+        function renderGrid() {
+            planGrid.innerHTML = '';
+            planData.forEach((task, index) => {
+                const isCompleted = completedDays[index];
+                const card = document.createElement('div');
+                
+                card.className = `day-card p-3 rounded-lg flex flex-col justify-between h-24 ${isCompleted ? 'completed' : ''} ${currentSelectedDay === index ? 'selected' : ''}`;
+                card.onclick = () => selectDay(index);
+                
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-1">
+                        <span class="text-[10px] font-black text-zinc-500 uppercase">Day ${task.day}</span>
+                        ${isCompleted ? '<span class="text-green-500 text-xs font-bold">✓</span>' : ''}
+                    </div>
+                    <h3 class="day-title text-sm font-bold text-zinc-200 leading-tight">${task.title}</h3>
+                `;
+                planGrid.appendChild(card);
+            });
+            updateProgress();
+        }
+
+        function selectDay(index) {
+            currentSelectedDay = index;
+            const task = planData[index];
+            const isCompleted = completedDays[index];
+
+            // Render Accordion UI for Topics
+            let topicsHTML = task.topics.map((t, i) => `
+                <div class="mb-3 border border-zinc-700/50 rounded bg-zinc-800/30 overflow-hidden">
+                    <button id="btn-topic-${index}-${i}" aria-expanded="false" class="briefing-topic-btn w-full text-left p-3 text-sm font-bold text-zinc-200 hover:bg-zinc-800 flex justify-between items-center transition-colors focus:outline-none" onclick="toggleBriefingTopic('btn-topic-${index}-${i}', 'content-topic-${index}-${i}')">
+                        <span class="flex items-center"><span class="topic-icon text-zinc-500 mr-2 transition-transform duration-200">▶</span> ${t.title}</span>
+                    </button>
+                    <div id="content-topic-${index}-${i}" class="hidden-content p-4 text-sm text-zinc-300 bg-zinc-900 border-t border-zinc-800/50 leading-relaxed">
+                        ${t.detail}
+                    </div>
+                </div>
+            `).join('');
+            
+            briefingContent.innerHTML = `
+                <div class="mb-6">
+                    <div class="flex justify-between items-end border-b border-zinc-800 pb-2 mb-4">
+                        <h4 class="text-2xl font-black text-white uppercase">Day ${task.day}</h4>
+                        <span class="text-xs font-bold ${isCompleted ? 'text-green-500' : 'text-zinc-500'} uppercase tracking-widest">${isCompleted ? 'Status: Completed' : 'Status: Pending Action'}</span>
+                    </div>
+                    <h5 class="text-xl font-bold text-orange-500 mb-2">${task.title}</h5>
+                    <p class="text-zinc-400 text-sm italic border-l-2 border-zinc-700 pl-3 py-1 mb-6">"${task.desc}"</p>
+                    
+                    <h6 class="text-sm font-bold text-zinc-500 uppercase tracking-widest mb-3">Tactical Nodes (Click to Expand)</h6>
+                    <div class="w-full">
+                        ${topicsHTML}
+                    </div>
+                </div>
+            `;
+
+            // Update Button State
+            btnMarkComplete.disabled = false;
+            btnMarkComplete.className = `w-full font-bold py-3 px-4 rounded transition-all duration-200 uppercase tracking-wider ${
+                isCompleted 
+                ? 'bg-zinc-800/50 text-zinc-500 border border-zinc-700 hover:bg-zinc-800 hover:text-white' 
+                : 'bg-orange-600 hover:bg-orange-500 text-white border border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.3)]'
+            }`;
+            btnMarkComplete.innerText = isCompleted ? 'Revert Status: Incomplete' : 'MARK DAY COMPLETE';
+            btnMarkComplete.onclick = () => toggleCompletion(index);
+
+            renderGrid();
+        }
+
+        function toggleCompletion(index) {
+            completedDays[index] = !completedDays[index];
+            localStorage.setItem('pmpPlanStatusDarkPro', JSON.stringify(completedDays));
+            selectDay(index); 
+            renderGrid();     
+        }
+
+        function updateProgress() {
+            const completedCount = completedDays.filter(Boolean).length;
+            const percentage = Math.round((completedCount / 30) * 100);
+            progressBar.style.width = `${percentage}%`;
+            progressText.innerText = `${percentage}%`;
+            
+            if(percentage === 100) {
+                progressBar.classList.remove('bg-orange-500');
+                progressBar.classList.add('bg-green-500');
+                progressText.classList.remove('text-orange-500');
+                progressText.classList.add('text-green-500');
+            } else {
+                progressBar.classList.add('bg-orange-500');
+                progressBar.classList.remove('bg-green-500');
+                progressText.classList.add('text-orange-500');
+                progressText.classList.remove('text-green-500');
+            }
+        }
+
+        // Initialize
+        renderMatrix();
+        renderGrid();
+
+    </script>
+</body>
+</html>

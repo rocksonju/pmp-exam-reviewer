@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PMP Exam Review Converter</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0f1117;
+      --surface:  #1a1d27;
+      --border:   #2a2d3a;
+      --accent:   #4f8ef7;
+      --accent-h: #6ba3ff;
+      --text:     #e2e8f0;
+      --muted:    #7a8094;
+      --success:  #34d399;
+      --error:    #f87171;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 2.5rem 2.8rem;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: 0 8px 40px rgba(0,0,0,.45);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+      margin-bottom: 1.8rem;
+    }
+    .logo-icon {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, #4f8ef7, #7c5cfc);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+    }
+    .logo h1  { font-size: 1.15rem; font-weight: 600; }
+    .logo .sub { color: var(--muted); font-size: .8rem; display: block; font-weight: 400; }
+
+    .divider { border: none; border-top: 1px solid var(--border); margin: 0 0 1.8rem; }
+
+    .field-label {
+      display: block;
+      font-size: .78rem;
+      font-weight: 500;
+      color: var(--muted);
+      margin-bottom: .4rem;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px;
+      padding: .65rem .9rem;
+      font-size: .95rem;
+      font-family: inherit;
+      outline: none;
+      transition: border-color .2s;
+      margin-bottom: 1.4rem;
+    }
+    input[type="text"]:focus { border-color: var(--accent); }
+
+    /* Drop zone */
+    .dropzone {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 1.8rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      margin-bottom: .5rem;
+    }
+    .dropzone:hover, .dropzone.drag-over {
+      border-color: var(--accent);
+      background: rgba(79,142,247,.06);
+    }
+    .dz-icon  { font-size: 2rem; margin-bottom: .5rem; }
+    .dz-text  { font-size: .9rem; color: var(--muted); }
+    .dz-text .link { color: var(--accent); font-weight: 500; }
+
+    /* Real file input is hidden */
+    #md_file { display: none; }
+
+    .file-badge {
+      text-align: center;
+      font-size: .82rem;
+      color: var(--accent);
+      margin-bottom: 1.4rem;
+      min-height: 1.2rem;
+    }
+
+    button {
+      padding: .75rem;
+      border: none;
+      border-radius: 8px;
+      font-size: .95rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background .2s, transform .1s;
+      display: flex; align-items: center; justify-content: center; gap: .5rem;
+    }
+    
+    button.primary-btn {
+      width: 100%;
+      background: var(--accent);
+      color: #fff;
+    }
+    button.primary-btn:hover   { background: var(--accent-h); }
+    button.primary-btn:active  { transform: scale(.98); }
+    button.primary-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    button.secondary-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      flex: 1;
+    }
+    button.secondary-btn:hover { background: var(--border); }
+    
+    .btn-group {
+      display: flex;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid rgba(255,255,255,.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .status {
+      margin-top: 1rem;
+      font-size: .87rem;
+      text-align: center;
+      min-height: 1.2rem;
+    }
+    .status.ok  { color: var(--success); }
+    .status.err { color: var(--error); }
+
+    .footer {
+      margin-top: 1.8rem;
+      text-align: center;
+      font-size: .75rem;
+      color: var(--muted);
+    }
+    
+    #postConvertDialog {
+      display: none;
+      text-align: center;
+      padding: 1rem 0;
+    }
+    
+    .success-msg {
+      font-size: 1.1rem;
+      color: var(--success);
+      margin-bottom: 1.5rem;
+      font-weight: 500;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .success-msg span:first-child { font-size: 2.5rem; }
+  </style>
+</head>
+<body>
+<div class="card">
+
+  <div class="logo">
+    <div class="logo-icon">📝</div>
+    <div>
+      <h1>Exam Review Converter</h1>
+      <span class="sub">PMP Question Formatter</span>
+    </div>
+  </div>
+  <hr class="divider"/>
+
+  <div id="mainForm">
+    <span class="field-label">Module Number</span>
+    <input type="text" id="module_no" placeholder="e.g. Module_01" />
+
+    <span class="field-label">Export Format</span>
+    <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 1.4rem;">
+      <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; color: var(--text); font-size: 0.9rem;">
+        <input type="radio" name="export_format" value="md" checked> Markdown (.md)
+      </label>
+      <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; color: var(--text); font-size: 0.9rem;">
+        <input type="radio" name="export_format" value="csv"> CSV (.csv)
+      </label>
+      <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; color: var(--text); font-size: 0.9rem;">
+        <input type="radio" name="export_format" value="docx"> Word (.docx)
+      </label>
+      <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; color: var(--text); font-size: 0.9rem;">
+        <input type="radio" name="export_format" value="pdf"> PDF (.pdf)
+      </label>
+    </div>
+
+    <span class="field-label">Input File (.md)</span>
+    <div class="dropzone" id="dropzone">
+      <div class="dz-icon">📂</div>
+      <div class="dz-text">Drop file here or <span class="link" id="browseBtn">click to browse</span></div>
+    </div>
+
+    <input type="file" id="md_file" accept=".md" />
+
+    <div class="file-badge" id="fileBadge">No file selected</div>
+
+    <button class="primary-btn" id="submitBtn">
+      <span id="btnText">Convert &amp; Download</span>
+      <div class="spinner" id="spinner"></div>
+    </button>
+    <div class="status" id="status"></div>
+  </div>
+
+  <div id="postConvertDialog">
+    <div class="success-msg">
+      <span>🎉</span>
+      <span>File converted successfully!</span>
+    </div>
+    
+    <div id="promptSection">
+      <p style="margin-bottom: 1rem; font-size: 0.95rem;">Do you want to convert another file?</p>
+      <div class="btn-group">
+        <button class="secondary-btn" id="btnYes">Yes</button>
+        <button class="primary-btn" id="btnNo">No</button>
+      </div>
+    </div>
+    <div class="status" id="shutdownMsg" style="display: none; color: var(--success); font-weight: 500; margin-top: 2rem;">
+      Thank you! You can close this window now.
+    </div>
+  </div>
+
+  <div class="footer">Upload raw exam .md → get formatted output .md</div>
+</div>
+
+<script>
+  const dropzone      = document.getElementById('dropzone');
+  const fileInput     = document.getElementById('md_file');
+  const fileBadge     = document.getElementById('fileBadge');
+  const browseBtn     = document.getElementById('browseBtn');
+  const btn           = document.getElementById('submitBtn');
+  const spinner       = document.getElementById('spinner');
+  const btnText       = document.getElementById('btnText');
+  const statusEl      = document.getElementById('status');
+  
+  const mainForm      = document.getElementById('mainForm');
+  const dialog        = document.getElementById('postConvertDialog');
+  const promptSection = document.getElementById('promptSection');
+  const shutdownMsg   = document.getElementById('shutdownMsg');
+  const btnYes        = document.getElementById('btnYes');
+  const btnNo         = document.getElementById('btnNo');
+
+  // Click dropzone → open file picker
+  dropzone.addEventListener('click', () => fileInput.click());
+  browseBtn.addEventListener('click', (e) => { e.stopPropagation(); fileInput.click(); });
+
+  const onFileSet = (file) => {
+    if (file) {
+      fileBadge.textContent = file.name;
+      setStatus('File loaded for export successfully', 'ok');
+    } else {
+      fileBadge.textContent = 'No file selected';
+      setStatus('', '');
+    }
+  };
+
+  fileInput.addEventListener('change', () => {
+    onFileSet(fileInput.files[0]);
+  });
+
+  // Drag & drop
+  ['dragenter','dragover'].forEach(ev => dropzone.addEventListener(ev, e => {
+    e.preventDefault(); dropzone.classList.add('drag-over');
+  }));
+  ['dragleave','drop'].forEach(ev => dropzone.addEventListener(ev, () =>
+    dropzone.classList.remove('drag-over')
+  ));
+  dropzone.addEventListener('drop', e => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      fileInput.files = dt.files;
+      onFileSet(file);
+    }
+  });
+
+  btn.addEventListener('click', async () => {
+    setStatus('', '');
+    const module = document.getElementById('module_no').value.trim();
+    const file   = fileInput.files[0];
+    const format = document.querySelector('input[name="export_format"]:checked').value;
+
+    if (!module) { setStatus('Please enter a Module Number.', 'err'); return; }
+    if (!file)   { setStatus('Please select a .md file.',     'err'); return; }
+
+    setLoading(true);
+    const fd = new FormData();
+    fd.append('module_no', module);
+    fd.append('md_file',   file);
+    fd.append('export_format', format);
+
+    try {
+      const res = await fetch('/convert', { method: 'POST', body: fd });
+
+      if (!res.ok) {
+        let msg = 'Conversion failed.';
+        try { msg = (await res.json()).error || msg; } catch {}
+        setStatus(msg, 'err');
+        return;
+      }
+
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `${module}_output.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      // Show success dialog
+      mainForm.style.display = 'none';
+      dialog.style.display = 'block';
+      
+    } catch {
+      setStatus('Network error. Is the server running?', 'err');
+    } finally {
+      setLoading(false);
+    }
+  });
+
+  function setLoading(on) {
+    btn.disabled          = on;
+    spinner.style.display = on ? 'block' : 'none';
+    btnText.textContent   = on ? 'Converting…' : 'Convert & Download';
+  }
+
+  function setStatus(msg, cls) {
+    statusEl.textContent = msg;
+    statusEl.className   = `status${cls ? ' ' + cls : ''}`;
+  }
+
+  // Answered YES
+  btnYes.addEventListener('click', () => {
+    document.getElementById('module_no').value = '';
+    fileInput.value = '';
+    onFileSet(null);
+    dialog.style.display = 'none';
+    mainForm.style.display = 'block';
+  });
+
+  // Answered NO
+  btnNo.addEventListener('click', async () => {
+    promptSection.style.display = 'none';
+    shutdownMsg.style.display = 'block';
+    try {
+      await fetch('/shutdown', { method: 'POST' });
+    } catch(e) {
+      // server dies, connection drops, ignored
+    }
+  });
+</script>
+</body>
+</html>

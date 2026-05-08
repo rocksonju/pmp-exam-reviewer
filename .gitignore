@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Flask
+flask_output.log
+
+# Generated / temp outputs
+test_output*.docx
+sample_new_layout.docx
+sample_preview.pdf
+live_output.pdf
+*.png
+sample_unpacked/
+generate_sample.py
+
+# Output files
+output_generated.*
+output.xlsx
+
+# Local tooling
+.claude/
+test_output.*
