@@ -75,8 +75,8 @@
 
   <label>Export Format</label>
   <select id="exportFormat">
-    <option value="docx">DOCX (1 question per page)</option>
-    <option value="pdf">PDF (1 question per page)</option>
+    <option value="docx">DOCX (landscape, 1 question per page)</option>
+    <option value="pdf">PDF (landscape, 1 question per page)</option>
     <option value="csv">CSV</option>
     <option value="md">Markdown</option>
   </select>
@@ -189,20 +189,24 @@ function buildCSV(data) {
 // ── PDF Builder ───────────────────────────────────────────────────────────────
 function buildPDF(data) {
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' });
+  // Landscape letter: 792 x 612 pt
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'letter' });
+  const PW = 792, PH = 612, ML = 72, MR = 72, MT = 54, MB = 36;
   const TAN  = [221, 217, 195];
   const GRAY = [242, 242, 242];
   const BLUE = [219, 229, 241];
+  const total = data.length;
+
   data.forEach((entry, i) => {
     if (i > 0) doc.addPage();
     const ch = (entry.Choices || '').split('; ');
     const body = [
-      ['Question No',   entry.QuestionNo   || ''],
-      ['QID',           entry.QID          || ''],
-      ['Question',      entry.Question     || ''],
+      ['Question No',   entry.QuestionNo    || ''],
+      ['QID',           entry.QID           || ''],
+      ['Question',      entry.Question      || ''],
       ...Array.from({length: 6}, (_, j) => [`Choice ${j+1}`, ch[j] || '']),
       ['Correct Answer',entry.SelectedChoice || ''],
-      ['Process\nGroup',entry.ProcessGroup   || ''],
+      ['Process Group', entry.ProcessGroup   || ''],
       ['Task Area',     entry.TaskArea       || ''],
       ['Justification', entry.Justification  || ''],
       ['Domain',        entry.Domain         || ''],
@@ -211,9 +215,9 @@ function buildPDF(data) {
     ];
     doc.autoTable({
       body,
-      startY: 72,
-      margin: { left: 90, right: 90 },
-      columnStyles: { 0: { cellWidth: 100, fontStyle: 'bold' }, 1: { cellWidth: 'auto' } },
+      startY: MT,
+      margin: { left: ML, right: MR, bottom: MB + 20 },
+      columnStyles: { 0: { cellWidth: 130, fontStyle: 'bold' }, 1: { cellWidth: 'auto' } },
       styles: { fontSize: 9, cellPadding: 5, overflow: 'linebreak', valign: 'top', textColor: [0,0,0] },
       didParseCell(d) {
         const r = d.row.index;
@@ -224,6 +228,10 @@ function buildPDF(data) {
         if ((r === 2 || r === 9) && d.column.index === 1) d.cell.styles.fontStyle = 'bold';
       },
     });
+    // Page number footer
+    doc.setFontSize(8);
+    doc.setTextColor(120, 120, 120);
+    doc.text(`Page ${i + 1} of ${total}`, PW / 2, PH - MB, { align: 'center' });
   });
   return doc.output('arraybuffer');
 }
@@ -233,12 +241,13 @@ async function buildDOCX(data, moduleName) {
   if (!window.docx) throw new Error('DOCX library failed to load. Reload the page.');
   const {
     Document, Paragraph, TextRun, Table, TableRow, TableCell,
-    WidthType, BorderStyle, ShadingType, AlignmentType, Header, Packer,
+    WidthType, BorderStyle, ShadingType, AlignmentType,
+    Header, Footer, PageNumber, Packer,
   } = window.docx;
 
-  // Portrait, 1 question per page — avoids nested-table browser limitation
-  const TOTAL = 9360; // 6.5" content at 1440 DXA/inch (letter - 1" margins each side)
-  const DLB   = 1800;
+  // Landscape letter: 15840 x 12240 DXA, 0.75" margins → content = 13680 DXA
+  const TOTAL = 13680;
+  const DLB   = 2200;
   const DVL   = TOTAL - DLB;
   const FS    = 18; // 9pt in half-points
 
@@ -298,12 +307,26 @@ async function buildDOCX(data, moduleName) {
   const doc = new Document({
     sections: [{
       properties: {
-        page: { margin: { top: 1440, bottom: 1440, left: 1440, right: 1440 } },
+        page: {
+          size: { width: 15840, height: 12240, orientation: 'landscape' },
+          margin: { top: 1080, bottom: 1080, left: 1080, right: 1080 },
+        },
       },
       headers: {
         default: new Header({
           children: [new Paragraph({
             children: [new TextRun({ text: `${moduleName}  |  ${today}`, size: 16, color: '505050' })],
+            alignment: AlignmentType.CENTER,
+          })],
+        }),
+      },
+      footers: {
+        default: new Footer({
+          children: [new Paragraph({
+            children: [
+              new TextRun({ children: ['Page ', PageNumber.CURRENT], size: 16, color: '808080' }),
+              new TextRun({ children: [' of ', PageNumber.TOTAL_PAGES], size: 16, color: '808080' }),
+            ],
             alignment: AlignmentType.CENTER,
           })],
         }),
